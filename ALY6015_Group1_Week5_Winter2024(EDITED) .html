@@ -1,0 +1,1055 @@
+---
+output:
+  html_document:
+    df_print: paged
+  word_document: default
+---
+
+<style>
+  body {
+    min-height: 100vh;
+    margin: 0;
+    overflow-x: hidden;
+  }
+  .main-container  {
+  text-align: center;
+    max-width: none;
+    margin-left: auto;
+    margin-right: auto;
+}
+  
+}
+
+  .container {
+  text-align: center;
+  background-color: white;
+  padding: 20px;
+  border-radius: 10px;
+  margin: 20px auto;
+  max-width: 1200px;
+}
+  
+  .main-body{
+    text-align: justify
+  }
+
+  hr {
+    border-width: 2px;
+    border-color: #474744;
+  }
+</style>
+
+<div class="container">
+  <BR>
+  <Font size="5.5" color="black">
+    <B>ALY6015.206463: Intermediate Analytics</B>
+  </font>
+  <br>
+  <img src="NUE.png" alt="Logo" width="150px">
+  <br>
+  <font size="5" color="black">
+    <b>Team Project</b>
+  </font>
+  <br>
+  <font size="6" color="#6b0cc4">
+    <b>Project Draft Report</b>
+  </font>
+  <br>
+  <font size="5" color="black">
+    <b>Group 1: FIFA Analytics Squad </b> 
+    <br>
+    <b>Members:</b> Ali Aliyev, Anjali Patil, Monika Gundecha, Nandini Kalyanam
+    <br>
+    <b>Instructor:</b> Prof. Vladimir Shapiro
+    <br>
+    10th Feb, 2024
+  </font>
+  <hr>
+</div>
+\newpage
+<div class="container">
+<div class="main-body">
+
+# Introduction
+
+In this project, we'll explore the dynamics and important aspects of the FIFA World Cup, focusing on player potential, market values, and the connection between a player's preferred foot and wages. By using detailed player data, our goal is to find valuable insights to help clubs improve their talent acquisition and management strategies. Our main focus will be answering these business questions:
+
+<b> Question 1: </b> Predict the potential of the players to identify emerging talents using regularization methods.
+
+<b> Question 2: </b>  Predict a player's market value based on key contributing factors using multiple linear regression.
+
+<b> Question 3: </b> Predict whether the player should be classified as a high-wage player or a low-wage player using logistic regression.
+
+<b> Question 4: </b>  Test whether there is a significant difference in overall ratings between players from Europe and South America.
+
+A Model predicting a player’s value can aid clubs in making informed decisions regarding transfers, negotiations, and financial investments in players.Similarly, A model predicting the potential of the players can help clubs in identifying and nurturing emerging talents can enhance a club's long-term competitiveness and sustainability.Also, Understanding regional disparities in player ratings can inform scouting strategies and talent recruitment efforts across different continents.We will be answering the above questions by building models and carrying out hypothesis testings in R. Before we start building models and conducting hypothesis testing to answer these questions, we will carry out Exploratory Data Analysis in this part of the project.
+
+# Exploratory Data Analysis
+Exploratory Data Analysis (EDA) involves asking questions about your data and forming hypotheses based on what you learn.*(Nishida,2018)* Its goal is to explore data before making assumptions. EDA can help spot mistakes, understand patterns, find out liers, and discover relationships among variables *(Chaudhary,2023)*.
+Let's dive deep into the data set and do the exploratory data analysis.
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+# Loading Libraries
+require(dplyr)
+require(tidyverse)
+require(ggplot2)
+require(psych)
+require(knitr)
+require(RColorBrewer)
+require(car)
+require(ggcorrplot)
+require(GGally)
+require(corrplot)
+require(car)
+require(olsrr)
+require(leaps)
+require(kableExtra)
+require(data.table)
+require(skimr)
+require(gridExtra)
+require(stargazer)
+require(ISLR)
+require(caret)
+require(pROC)
+require(MKclass)
+require(ggExtra)
+require(glmnet)
+require(leaps)
+options(scipen = 100)
+```
+
+## Loading the data set:
+```{r message=FALSE, warning=FALSE, results='hide'}
+fifa_df <- read_csv("/Users/aa085/outputplayers20.csv")
+summary(fifa_df)
+str(fifa_df)
+```
+**About the Data set: ** The dataset was obtained from Sports Statistics website and contains information about 18,483 FIFA players in year 2020 and encompasses approximately 110 attributes. It includes essential details such as player position, overall rating, market value, weekly wage, date of birth, physical traits (height, weight, body type), club affiliation, league, and nationality. Additionally, the dataset provides insights into preferred and weak foot, various skills like pace, shooting, and passing, as well as performance metrics such as attacking crossing and heading accuracy. Attributes related to player power, including shot power, power jumping, and power stamina, are also available. Moreover, the data set outlines player positions in different formations, such as ls, st, rs, lw, etc., along with other performance metrics. 
+
+```{r message=FALSE, warning=FALSE}
+na_summary <- colSums(is.na(fifa_df))
+na_summary_filtered <- na_summary[na_summary > 0]
+table_1<- knitr::kable(na_summary_filtered, align = "c", caption = "Table 1: Coolumns with Null Values") %>%
+    kable_classic(full_width = FALSE)
+table_1
+```
+**Observations: ** It was observed that the data set contains a lot of columns with high number of null values. Since these columns have more than 10,000 null values and are not useful for our data analysis, removing these columns will be a good strategy.
+
+
+## Data Cleaning
+```{r}
+columns_to_drop <- c(
+  "player_url", "long_name", "dob", "club_jersey_number",
+  "club_loaned_from", "nation_team_id", "nation_position",
+  "nation_jersey_number", "work_rate", "real_face",
+  "player_tags", "goalkeeping_speed", "player_face_url",
+  "club_logo_url","player_traits", "club_flag_url", "nation_logo_url", "nation_flag_url"
+)
+
+fifa_df <- fifa_df[, !(names(fifa_df) %in% columns_to_drop)]
+```
+
+Columns with many null values were removed along with the columns that are not useful in the analysis of the project like columns containing url links.Still few columns with null values remained, however all of them were not treated as per the need in the further analysis.
+
+## Adding and Treating Columns:
+It was observed that some of the columns like 'Player Positions' contained very important information but in textual form and had more than one positions mentioned. Information about player position can be helpful in predicting potential or market values. Hence creating separate columns for all the positions:
+```{r}
+# Separating Player Positions column
+fifa_df <- fifa_df %>%
+  mutate(General_Position = case_when(
+    grepl("GK", player_positions) ~ "Goalkeeper",
+    grepl("(CB|LB|RB)", player_positions) ~ "Defender",
+    grepl("(CM|CAM|LM|RM)", player_positions) ~ "Midfielder",
+    grepl("(RW|LW|ST|CF)", player_positions) ~ "Attacker",
+    TRUE ~ "Other"
+  ))
+```
+The above code categorizes player positions into broader categories (e.g., Goalkeeper, Defender) to simplify analysis. This was done to facilitate exploratory data analysis by providing a clearer overview of player roles and distributions within the data set.
+
+```{r}
+# Treating Club Joined column
+fifa_df$club_joined <- substr(fifa_df$club_joined, 1, 4)
+```
+It was observed that club names were very long which can be difficult to handle during the data analysis so the club names were shorten to first four letters.
+
+```{r}
+fifa_df <- fifa_df %>%
+  mutate(Footdummy = ifelse(preferred_foot == "Right", 1, 0))
+```
+Next task was to convert the preferred position column that has categorical variables into factors of 0 and 1 with 1 denoting 'Right' foot so that it can be used during modelling.
+
+```{r}
+# Adding Wage class column to solve the third business question
+fifa_df$wageclass <- ifelse(fifa_df$wage_eur > 10000, 1, 0)
+fifa_df$wageclass <- as.factor(fifa_df$wageclass)
+```
+Since, we will be predicting high wage and low wage players for our logistic regression model. A wage class column was created where players with weekly wage more than 10000 euros were assigned 1 and the other were assigned 0.
+
+## Treating Null Values and Integer Columns:
+
+The data set contains a lot of columns with integer values so converting those integers values in numeric values will be better for modelling.
+```{r}
+# Converting integer values into numeric values
+convert_int_to_numeric <- function(x) {
+  if(is.integer(x)) {
+    as.numeric(x)
+  } else {
+    x
+  }
+}
+# Applying the function to relevant columns
+fifa_df <- fifa_df %>%
+  mutate_if(is.integer, convert_int_to_numeric)
+```
+Further, checking descriptive statistics for numerical variables is important as it can given important information that can be sued while treating the null values.
+```{r results='hide'}
+# Checking summary and treating null values
+summary(fifa_df %>% select_if(is.numeric))
+
+fifa_df_cleaned <- na.omit(fifa_df)
+
+summary(fifa_df_cleaned)
+```
+It was observed that there were some null values present in some of the columns.These null values were omitted as they were very few in numbers as compared to total observations and would not really affect the modelling.
+
+## Exploratory Analysis using Graphs and Visulaisations:
+In order to build predictive regression models to solve our business questions, one of the most important to check in EDA is checking the correlation matrix to obtain information about which variables are highly correlated to the response variable and is there any correlation between the independent variables or predictors.
+
+```{r fig.align='center', fig.width=15, fig.height=12, fig.cap='Fig.1:Correlation Matirx with All Numerical Variables'}
+# Correlation Matrix
+cor_matrix_cleaned <- cor(fifa_df_cleaned %>% select_if(is.numeric))
+corrplot(cor_matrix_cleaned, method = "color", type = "upper")
+```
+ **Observations:**It can be observed that overall rating, potentil, market value variables had high correlation with some of the variables like market value variable had comparatively strong correlation with release clause error, mentality composure, international reputation, attacking features, etc.However, as it can be also be seen in figure 1, there are a few variables that are highly correlated to each other showing the signs of multicollinearity. Multicollinearity arises when independent variables in a regression model exhibit high correlation with each other. In such cases, alterations in one variable can induce corresponding changes in another, leading to substantial fluctuations in the model results *(Wu,2020)*. It will important to check for multicollinearity while select feature for the models.
+ 
+```{r}
+# Finding highly correlated variables
+cutoff <- 0.9
+highly_correlated_cols <- which(
+  upper.tri(cor_matrix_cleaned, diag = TRUE) &   # Exclude lower triangle and diagonal
+  abs(cor_matrix_cleaned) > cutoff,               # Apply correlation cutoff
+  arr.ind = TRUE
+)
+
+# Excluding pairs where both columns are the same
+valid_correlation_pairs <- highly_correlated_cols[highly_correlated_cols[, 1] != highly_correlated_cols[, 2], ]
+
+# Get the names of highly correlated columns
+highly_correlated_cols_names <- colnames(cor_matrix_cleaned)
+
+# Pairs of higly correlated variables
+for (pair in 1:nrow(valid_correlation_pairs)) {
+  col1_name <- highly_correlated_cols_names[valid_correlation_pairs[pair, 1]]
+  col2_name <- highly_correlated_cols_names[valid_correlation_pairs[pair, 2]]
+  cat(sprintf("Pair %d: %s, %s\n", pair, col1_name, col2_name))
+}
+
+```
+ **Observations: ** It can be observed that some of the variables are highly collinear with each other. That means they depend on each other. Son in order to avoid, multicollinearity in our model, we should avoid selecting dependent features simultaneously for predicting market values. For example,  we should avoid using shooting and attacking finishing in the same model.
+ 
+## Checking Variables that are highly correlated to Market Value
+While building model for the first question, we can use the variables that show good correlation with market value response variable.
+```{r  fig.align='center', fig.cap='Fig.2:Correlation', message=FALSE, warning=FALSE}
+
+cor_with_value_eur <- cor_matrix_cleaned[,"value_eur"]
+sorted_correlations <- sort(cor_with_value_eur, decreasing = TRUE)
+
+barplot(sorted_correlations, col = "red", main = "Correlations with Market Value",
+        ylab = "Correlation", names.arg = names(sorted_correlations), las = 2)
+```
+**Observations:** It can be observed from figure 2 that variables like weekly wage, international reputation, movement reactions etc show high correlation with market value. We can select only variables that show more than 0.5 collinearity with market value for our model.
+
+## Checking For Outliers
+
+An outlier represents a data point within a dataset that deviates notably from other observations. These instances are particularly noteworthy as they possess the potential to exert a substantial impact on the least squares line. Therefore, it is crucial to assess and address out liers diligently. *(Wijaya,2020)*
+```{r fig.align='center', fig.cap='Fig.3:Outliers', message=FALSE, warning=FALSE}
+# Creating function to plot outliers
+plot_outliers <- function(data) {
+  numeric_columns <- sapply(data, is.numeric)
+  numeric_data <- data[, numeric_columns, drop = FALSE]
+  
+  # Melt the data for plotting
+  melted_data <- reshape2::melt(numeric_data)
+  
+  # Create boxplots with rotated x-axis labels and red outliers
+  ggplot(melted_data, aes(x = variable, y = value)) +
+    geom_boxplot(outlier.colour = "red", outlier.shape = 16, outlier.size = 3) +
+    labs(title = "Boxplots for Numeric Columns (Outliers Highlighted)") +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+}
+
+# Plot outliers with rotated x-axis labels and red color
+plot_outliers(fifa_df_cleaned)
+```
+
+**Observations**:From figure 3, tt can be observed that there are quite a few outliers present in market value variable. We need to check if these outliers have influence on the model fit and can be removed if needed.We can ignore the outliers present in release clause for now as it need not be used during modelling due to multicollinearity as seen in one of the above tasks.
+
+To explore that data set further in order to do built the logistic regression model to classify players with high wages, we can first convert the wages into two different factors and then see how these factors interact with different independent variables.
+
+```{r fig.align='center', fig.cap='Fig.4:Player Attributes', message=FALSE, warning=FALSE}
+
+# Ploting 
+fifa_df_cleaned$wageclass <- as.factor(fifa_df_cleaned$wageclass)
+fifa_df_plot <- na.omit(fifa_df_cleaned[, c("physic", "overall", "wageclass", "age")])
+
+ggplot(fifa_df_plot, aes(x = physic, y = overall)) +
+ geom_point(aes(color = wageclass, size = age), alpha = 0.4) +
+ scale_color_manual(values = c("1" = "#E41A1C", "2" = "#377EB8"), labels = c("1" = "Label 1", "2" = "Label 2")) + 
+ scale_size(range = c(2, 6)) + 
+ theme_minimal() +
+ theme(legend.position = "right", legend.title = element_blank()) +
+ labs(
+   title = "Player Attributes Visualization for Classification",
+   x = "Physic",
+   y = "Overall Rating",
+   color = "Wageclass",
+   size = "Age"
+ ) +
+ guides(color = guide_legend(override.aes = list(size = 5)))
+
+```
+**Observation **: It can be seen that high wage class players and low wage class players are not much overlapping in the map. That means if we consider overall rating and physic variable for our logistic regression model then it will be easily be able to distinguish between the high wage and low wage players.
+
+To do further analysis about the regions of the players to solve our fourth business question, we will define European and South American Region
+```{r}
+# Defining regions
+european_countries <- c("Portugal", "Belgium", "Slovenia", "Croatia", "Germany", "Netherlands", "Italy", "Spain", "Poland", "France", "England", "Denmark", "Bosnia and Herzegovina", "Slovakia", "Sweden", "Wales", "Hungary", "Switzerland", "Greece", "Austria", "Serbia", "Czech Republic", "Norway", "Iceland", "Finland", "Scotland", "Albania", "Kosovo", "Republic of Ireland", "Northern Ireland", "Romania", "Turkey", "Armenia", "Russia", "Montenegro", "Bulgaria", "Estonia", "Moldova", "Ukraine", "Georgia", "Lithuania", "Latvia", "Luxembourg", "Azerbaijan", "Kazakhstan", "Faroe Islands", "Liechtenstein", "Malta", "San Marino", "Vatican City")
+south_american_countries <- c("Argentina", "Brazil", "Uruguay", "Chile", "Colombia", "Ecuador", "Paraguay", "Peru", "Venezuela", "Bolivia")
+
+```
+
+Now let's create a variable showing the region of the player:
+```{r message=FALSE, warning=FALSE}
+fifa_df_cleaned$region <- ifelse(fifa_df_cleaned$nationality_name %in% european_countries, "Europe",
+                            ifelse(fifa_df_cleaned$nationality_name %in% south_american_countries, "South America", "Other"))
+```
+
+Now we can check if there is any difference between the overall rating mean of Europian players and South American players.
+```{r}
+mean_overall_europe <- mean(fifa_df_cleaned$overall[fifa_df_cleaned$region == "Europe"], na.rm = TRUE)
+
+mean_overall_south_america <- mean(fifa_df_cleaned$overall[fifa_df_cleaned$region == "South America"], na.rm = TRUE)
+
+cat("Mean Overall Rating for European Players:", mean_overall_europe, "\n")
+cat("Mean Overall Rating for South American Players:", mean_overall_south_america, "\n")
+
+
+```
+**Observation **: It can be observed that there is slight difference between the mean overall rating of European players and South American players. But is it statistically significant? That can be found using the hypothesis testing.
+
+```{r fig.align='center', fig.cap='Fig.5:Overall Rating by Region', message=FALSE, warning=FALSE}
+
+ggplot(data = fifa_df_cleaned, aes(x = region, y = overall)) +
+  geom_boxplot(fill = "coral4", color = "seagreen") +
+  labs(title = "Overall Ratings by Region",
+       x = "Region",
+       y = "Overall Rating") +
+  scale_x_discrete(labels = c("Europe", "South America", "Other"))
+```
+**Observation **: It can be observed from figure 5 that there is a slight difference in the overall ratings of Europe, South America and Other countries. However, the difference is not much between Europe and South America. It is interesting to note that other countries are showing higher overall ratings as compared to Europe and South America in-spite of these two regions being home to the most famous clubs. This could be due to the fact that players with different nationalities can belong to clubs in Europe and America.
+
+In order to carry out hypothetical testing, it is important to check if the distribution is following normal distribution or not. This can be checked using histogram.
+```{r fig.align='center', fig.cap='Fig.6:Distribution of Overall Ratings by Region', message=FALSE, warning=FALSE}
+# Histogram
+fifa_df_plot<- fifa_df_cleaned %>% 
+                      filter(region %in% c('Europe', 'South America'))
+ggplot(data = fifa_df_plot, aes(x = overall, fill = region)) +
+  geom_histogram(binwidth = 2, alpha = 0.7, position = "identity") +
+  labs(title = "Distribution of Overall Ratings by Region",
+       x = "Overall Rating",
+       y = "Frequency",
+       fill = "Region") +
+  scale_fill_manual(values = c("skyblue4", "white"))
+```
+
+**Observation:** It can be observed from figure 7, that distribution of overall ratings in both the distributions is approximately normal. Hence, we can easily use and rely on the hypothesis testing to check if there is difference between the overall mean rating between the two countries.
+
+# Data Anlysis:
+
+## Question 1: Predict the potential of the players to identify emerging talents using regularization methods.
+
+Before constructing the model with regularization techniques, it's crucial to address variables that exhibit high collinearity or multicollinearity with other predictors.
+
+Collinearity refers to the linear relationship between two or more predictors in a regression model. Multicollinearity occurs when predictors are highly correlated with each other, making it difficult to estimate the individual effect of each predictor on the target variable.
+
+During exploratory data analysis (EDA), variables with high collinearity or multicollinearity are already identified using correlation matrices, variance inflation factor (VIF). So, removing one variable from each pair.
+```{r}
+colnames(fifa_df_cleaned)
+fifa_df_BQ2 <- fifa_df_cleaned
+
+# Iterate over each pair of highly correlated columns
+for (pair in 1:nrow(valid_correlation_pairs)) {
+  col1_index <- valid_correlation_pairs[pair, 1]
+  col2_index <- valid_correlation_pairs[pair, 2]
+  
+  #Removing columns from the dataframe
+  fifa_df_BQ2 <- fifa_df_BQ2[, -col2_index]
+}
+
+```
+
+With 82 variables remaining, it becomes computationally burdensome to incorporate all of them into the model. Therefore, further reduction is necessary. Height and weight variables typically exhibit correlation, yet instead of discarding one of them outright, a more nuanced approach involves creating a new variable representing Body Mass Index (BMI) derived from height and weight. This new variable, capturing a combination of both height and weight, can then be integrated into the model, contributing to a more comprehensive understanding of the relationship between body composition and the target variable.
+
+```{r}
+fifa_df_BQ2$height_m <- fifa_df_BQ2$height_cm / 100
+# Calculate BMI
+fifa_df_BQ2$BMI <- fifa_df_BQ2$weight_kg / (fifa_df_BQ2$height_m)^2
+
+fifa_df_BQ2 <- fifa_df_BQ2[, !names(fifa_df_BQ2) %in% c("height_cm", "weight_kg","height_m" )]
+#colnames(fifa_df_BQ2)
+#str(fifa_df_BQ2)
+
+```
+
+The data frame contains numerous non numeric variables so, selecting only numeric variables for prediction and then splitting the data set into train and test data set to build model.
+
+```{r}
+fifa_df_BQ2_num<- select_if(fifa_df_BQ2, is.numeric)
+
+set.seed(354)
+smpl_i<-createDataPartition(fifa_df_BQ2_num$potential, list = FALSE,p=0.8, times = 1)
+fifa_BQ2_train<-fifa_df_BQ2_num[smpl_i,]
+fifa_BQ2_test<-fifa_df_BQ2_num[-smpl_i,]
+
+potential_i<- which(colnames(fifa_df_BQ2_num) == "potential")
+# x values
+fifa_BQ2_train_x<-model.matrix(potential~.,fifa_BQ2_train)[,-potential_i]
+fifa_BQ2_test_x<-model.matrix(potential~.,fifa_BQ2_test)[,-potential_i]
+#y values
+fifa_BQ2_train_y<-fifa_BQ2_train$potential
+fifa_BQ2_test_y<-fifa_BQ2_test$potential
+```
+
+Will be applying ridge regularization first and check the RMSE values for the predictive model. 
+
+## Ridge Regularization:
+```{r}
+set.seed(354)
+ridge_BQ2 <- cv.glmnet(fifa_BQ2_train_x, fifa_BQ2_train_y, alpha = 0, nfolds = 10)
+
+Lambda_min_ridge_BQ2 <- ridge_BQ2$lambda.min
+Lambda_1se_ridge_BQ2 <- ridge_BQ2$lambda.1se
+
+# Plot the cross-validation results
+plot(ridge_BQ2)
+```
+
+The observation reveals that the mean squared error remains relatively stable between lambda min and lambda 1se. Consequently, the choice is made to utilize lambda 1se, primarily because this model penalizes certain variables, offering a balanced trade-off between model complexity and performance.
+
+```{r}
+set.seed(354)
+
+ridge_model_BQ2_1se <- glmnet(fifa_BQ2_train_x, fifa_BQ2_train_y, alpha = 0, lambda = Lambda_1se_ridge_BQ2)
+
+# Coefficients for lambda 1se model
+ridge_model_BQ2_1se_coef <- coef(ridge_model_BQ2_1se)
+
+# Prediction on train data set
+pred_train_ridge_BQ2_1se <- predict(ridge_model_BQ2_1se, newx = fifa_BQ2_train_x)
+rmse_train_ridge_BQ2_1se <- sqrt(mean((fifa_BQ2_train_y - pred_train_ridge_BQ2_1se)^2))
+
+```
+
+Let's now check the rmse values on the test data set:
+```{r}
+pred_test_ridge_BQ2_1se <- predict(ridge_model_BQ2_1se, newx = fifa_BQ2_test_x)
+rmse_test_ridge_BQ2_1se <- sqrt(mean((fifa_BQ2_test_y - pred_test_ridge_BQ2_1se)^2))
+
+##RMSE values for Ridge
+ridge_BQ2_df <- data.frame(
+  "RMSE for Train" = rmse_train_ridge_BQ2_1se,
+  "RMSE for Test" = rmse_test_ridge_BQ2_1se
+)
+
+table_BQ2_1<-knitr::kable(ridge_BQ2_df, align = "c",
+                        caption = "Table BQ2_1: RMSE Values for Ridge Regression") %>%
+    kable_classic(full_width = FALSE)
+table_BQ2_1
+```
+
+In our attempt with ridge regularization, we noticed that it didn't effectively eliminate variables, and considering the model already comprises numerous variables, it tends to become overly complex. Now, we aim to explore Lasso regression as an alternative. Unlike ridge regression, Lasso regression has the capability to automatically eliminate less significant variables by shrinking their coefficients to zero. This feature makes Lasso regression a suitable choice for reducing the complexity of our model while retaining its predictive performance.
+
+## Lasso Regularization:
+```{r}
+#Finding lambda values for Lasso
+set.seed(354)
+lasso_BQ2<-cv.glmnet(fifa_BQ2_train_x, fifa_BQ2_train_y,alpha=1, nfolds = 10)
+
+Lambda_min_BQ2<-lasso_BQ2$lambda.min
+Lambda_1se_BQ2<-lasso_BQ2$lambda.1se
+
+plot(lasso_BQ2)
+```
+
+It can be observed that the lambda.1se is a better choice as the mean-square root value is low and at the same time it has fewer number of variables.
+
+```{r}
+#Lasso model on train data set
+set.seed(354)
+
+lasso_model_BQ2_1se <- glmnet(fifa_BQ2_train_x, fifa_BQ2_train_y, alpha = 1, lambda = Lambda_1se_BQ2)
+
+#Coefficients for lambda 1se model
+lasso_model_BQ2_1se_coef<-coef(lasso_model_BQ2_1se)
+
+#Prediction on train data set
+pred_train_BQ2_1se<-predict(lasso_model_BQ2_1se, newx =fifa_BQ2_train_x)
+rmse_train_BQ2_1se<-sqrt(mean((fifa_BQ2_train_y - pred_train_BQ2_1se)^2))
+
+```
+
+```{r}
+## Lasso Model on Test Data set
+pred_test_BQ2_1se<-predict(lasso_model_BQ2_1se, newx =fifa_BQ2_test_x)
+rmse_test_BQ2_1se<-sqrt(mean((fifa_BQ2_test_y - pred_test_BQ2_1se)^2))
+
+##RMSE values for Lasso
+Lasso_BQ2_df <- data.frame(
+  "Ridge: RMSE for Train" = rmse_train_ridge_BQ2_1se,
+  "Ridge: RMSE for Test" = rmse_test_ridge_BQ2_1se,
+  "Lasso: RMSE for Train" = rmse_train_BQ2_1se,
+  "Lasso: RMSE for Test" = rmse_test_BQ2_1se
+)
+
+table_BQ2_2<-knitr::kable(Lasso_BQ2_df, align = "c",
+                        caption = "Table BQ2_1: RMSE Values for Lasso & Ridge Regression") %>%
+    kable_classic(full_width = FALSE)
+table_BQ2_2
+
+```
+
+It can be observed that RMSE values are smaller for Lasso model than Ridge model hence we can prefer Lasso model. However, the RMSE value is a little less for test data set than train data set. This could be because the model might be too complex, leading to poor performance on the training set but better performance on the test set. This can happen when the model is trying to fit noise in the training data.In the next step we can try to use subset selection method to build one more model and then compare it to lasso model that has been built.
+Other way could be removing some of irrelevant numeric variables in the data set and converting few of the relevant categorical variables like performance in different position variables in numeric variables and use them in the model.
+
+## Question 2: Predict a player’s market value based on key contributing factors using multiple linear regression.
+
+The code snippet provided focuses on preparing a dataset for a multiple linear regression analysis aimed at predicting soccer players' market values. Initially, We created a custom function designed to standardize all numerical data within the dataset to the numeric type, addressing the diversity of data types (like integers and doubles).Then we implemented processing involves applying the function to convert all integer values to numeric, ensuring uniformity in the dataset's numerical data. Subsequently, the dataset is cleansed of any rows containing missing values. 
+
+After cleaning the data, a correlation matrix is generated from the numeric columns of the dataset. The range is chosen to focus on variables with a strong positive relationship but excluding perfect correlation (which is represented by a coefficient of 1). The next step involves extracting and listing the variable names that exhibit high correlation.
+
+```{r}
+# Converting integer values into numeric values
+convert_int_to_numeric <- function(x) {
+  if(is.integer(x) | is.double(x) ) {
+    as.numeric(x)
+  } else {
+    x
+  }
+}
+# Applying the function to relevant columns
+fifa_df <- fifa_df %>%
+  mutate_if(is.integer, convert_int_to_numeric)
+fifa_df_cleaned <- na.omit(fifa_df)
+# Calculate the correlation matrix
+cor_matrix <- cor(fifa_df_cleaned %>% select_if(is.numeric))
+
+# Find pairs of variables with correlation above 0.5
+high_correlation_pairs <- which(cor_matrix > 0.5 & cor_matrix < 1, arr.ind = TRUE)
+
+# Extract variable names
+high_correlation_vars <- rownames(cor_matrix)[high_correlation_pairs[, 1]]
+high_correlation_vars <- unique(c(high_correlation_vars, colnames(cor_matrix)[high_correlation_pairs[, 2]]))
+
+# Display the variables with correlation above 0.5
+cat("Variables with correlation above 0.5:\n")
+high_correlation_vars
+```
+
+The code performs linear regression to predict soccer players' market values from key factors, using a dataset split into training and testing parts. The model is trained on the training data, focusing on variables with high correlation to the players' value. The model's performance is evaluated through its R-squared value, indicating how well it predicts market values. For the training data, the model achieves an impressive R-squared of 98.92%, suggesting a strong fit. This high performance is nearly matched on the test data, with an R-squared of 98.86%, indicating the model's robustness and its ability to generalize well to unseen data. Mean Squared Error (MSE) for the test set provides a measure of the prediction error, complementing the R-squared in assessing model accuracy. The outcomes indicate a highly effective model in predicting player market values based on the selected factors.
+
+```{r}
+#Linear regression for predicting the player's market value based on key contributing factors.
+
+
+# Split the data into training and testing sets
+set.seed(42)
+indices <- sample(1:nrow(fifa_df_cleaned), size = 0.7 * nrow(fifa_df_cleaned))  # Adjust the split ratio if needed
+train_data <- fifa_df_cleaned[indices, ]
+test_data <- fifa_df_cleaned[-indices, ]
+
+features <- train_data %>% select(high_correlation_vars)
+target <- train_data$value_eur
+features1 <- features %>% select(-value_eur)
+
+
+
+# Build a linear regression model
+model <- lm(target ~ ., data = features1)
+
+# Make predictions on the training set
+train_predictions <- predict(model, newdata = features1)
+
+# Calculate R-squared on the training set
+train_r_squared <- (cor(train_predictions, train_data$value_eur)^2)*100
+
+# Display the R-squared value
+cat(paste("Training R-squared:", round(train_r_squared, 4), "%\n"))
+
+test_features <- test_data %>% select(high_correlation_vars)
+test_target <- test_data$value_eur
+test_features1 <- test_data %>% select(-value_eur)
+# Make predictions on the test set
+predictions <- predict(model, newdata = test_features1)
+
+length(predictions)
+
+
+# Evaluate the model
+mse <- mean((predictions - test_target)^2)
+r_squared <- (1 - mse / var(test_target))*100
+
+# Display model performance metrics
+cat(paste("Mean Squared Error:", mse, "\n"))
+cat(paste("R-squared:", round(r_squared,4), "%\n"))
+
+
+# Create a data frame for plotting
+plot_data <- data.frame(Actual = test_target, Predicted = predictions, Residuals = predictions - test_target)
+
+```
+
+The scatter plot visualizes the relationship between the actual market values of players (on the x-axis) and the values predicted by the linear regression model (on the y-axis). The closer the points are to the dashed green line, which represents a perfect prediction, the more accurate the model. The solid yellow line, representing the best fit line from the regression, is very close to this perfect prediction line, which indicates a high degree of accuracy in the model's predictions. The spread of the purple points suggests that the model predicts lower values quite well but shows some variance as the market value increases. The model appears to be performing well, given the high concentration of points near the line of perfect prediction.
+
+```{r}
+# Scatter plot with regression line
+scatter_plot = ggplot(plot_data, aes(x = Actual, y = Predicted)) +
+  geom_point(color = "purple", alpha = 0.7) +
+  geom_smooth(method = "lm", se = FALSE, color = "yellow") +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "green") +
+  labs(title = "Actual vs Predicted Values",
+       x = "Actual Values",
+       y = "Predicted Values") +
+  theme_minimal()
+scatter_plot
+```
+
+```{r}
+# Residual plot
+residual_plot=ggplot(plot_data, aes(x = Actual, y = Residuals)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  geom_point(color = "blue", alpha = 0.7) +
+  labs(title = "Residual Plot",
+       x = "Actual Values",
+       y = "Residuals") +
+  theme_minimal()
+residual_plot
+# Combine R-squared values
+r_squared_values <- c(Train = train_r_squared, Test = r_squared)
+```
+
+The residual plot shows the residuals (the differences between the observed values and the values predicted by the model) on the y-axis and the actual values of the players' market on the x-axis.
+
+The residuals do not appear to be randomly distributed around the horizontal line at zero. Instead, there's a noticeable pattern where the residuals become more spread out as the actual value increases. This indicates heteroscedasticity, which is a violation of one of the linear regression assumptions that the variance of residuals should remain constant across all levels of the independent variable. For lower market values, the model seems to perform quite well, with residuals closely clustered around the zero line. However, as the market value increases, the model's predictions become less accurate, and the residuals grow larger. This suggests that the model is missing key factors that become more influential for players with higher market values.
+
+In summary, while the model performs exceptionally well according to the R-squared values provided earlier, the residual plot indicates that there is room for improvement, especially in accurately predicting the market values of the higher-valued players.
+
+```{r}
+# Combine R-squared values
+r_squared_values <- c(Train = train_r_squared, Test = r_squared)
+
+# Create a bar plot
+barplot(r_squared_values, col = c("lightgreen", "orange"), main = "Comparison of R-squared Values",
+        ylim = c(0, 100), ylab = "R-squared", beside = TRUE, legend.text = TRUE)
+
+# Add labels with improved positioning
+text(x = c(1, 2), y = r_squared_values + 0.008, 
+     labels = paste(round(r_squared_values, 2), "%"), pos = 2, cex = 0, col = "black")
+
+```
+
+While the R-squared values are impressively high for both the training (98.92%) and test (98.86%) datasets, indicating a model that fits the data very well, it's important to note that the presence of heteroscedasticity can artificially inflate these metrics.This condition where the variability of the residuals is not constant across all levels of the independent variables, can lead to overestimations of the model's predictive power. This means that even though the R-squared values suggest an excellent fit, they might not be entirely reliable indicators of the model's true performance due to this underlying issue. 
+
+### Question 3: Predict whether the player should be classified as a high-wage player or a low-wage player using logistic regression.
+
+
+We set a location for a CSV file and then read the data from this file into the R environment, creating a data structure ready for analysis.
+```{r}
+file_path <- "/Users/aa085/outputplayers20.csv"
+data <- read.csv(file_path)
+```
+
+Then, We used a function to generate a summary of the dataset, which includes statistical summaries for each variable, such as mean, median, minimum, and maximum values, as well as counts for categorical variables. This provides a quick overview of the data's characteristics.
+
+```{r message=FALSE, warning=FALSE, results='hide'}
+summary(data)
+```
+
+To identify the presence of missing values across the dataset, We employed a two-step approach. Initially, I utilized a function to assess each element in the dataset for missing values, producing a boolean matrix that indicates the presence of missing data. Subsequently, We aggregated this information at the column level to quantify the total number of missing values per variable.
+
+```{r}
+na_values <- is.na(data)
+colSums(na_values)
+```
+
+Recognizing the limited predictive value of existing categorical variables such as the player's preferred foot, position, league, and nationality, We decided to introduce a new categorical variable aimed at enhancing the dataset's analytical utility. This variable delineates players based on their wage, categorizing them into two distinct groups. To achieve this, We first determined a wage threshold by analyzing the median wage(Used 50 th percentile to avoid class bias), thereby ensuring resilience to outliers and a balanced categorization criterion. Players earning above this threshold were assigned to one category, signifying a higher wage, while those below were categorized accordingly. This new variable is intended to serve as a more meaningful target for prediction models, facilitating a nuanced exploration of factors influencing player remuneration. Following the creation of this variable, the original wage data was removed to streamline the dataset for analysis focused on this newly defined classification.
+
+```{r}
+good_wage_threshold <- quantile(data$wage_eur, 0.5, na.rm = TRUE)
+data$good_wage <- ifelse(data$wage_eur > good_wage_threshold, 1, 0)
+data$wage_eur <- NULL
+```
+
+Acknowledging the significant role a player's position plays in their wage potential, I opted to further refine the dataset by incorporating a new column that categorizes players based on their positions. This decision was driven by the understanding that a player's position is a key determinant of their value and, consequently, their earnings. To implement this, I employed a transformation that assigns numerical values to different general positions—goalkeepers, defenders, midfielders, and attackers—reflecting a structured approach to represent these categories. This method allows for the nuanced inclusion of positional data, highlighting its importance in analyses focused on understanding wage disparities among players. 
+
+```{r}
+#library(dplyr)
+
+data <- data %>%
+  mutate(new_column = case_when(
+    General_Position == "Goalkeeper" ~ 0,
+    General_Position == "Defender" ~ 1,
+    General_Position == "Midfielder" ~ 2,
+    General_Position == "Attacker" ~ 3,
+    TRUE ~ NA_real_ 
+  ))
+
+```
+
+In this part of the code, I initiated a process to pinpoint the specific rows within the dataset where the 'value_eur' column contains missing values. This preparatory step is crucial as it lays the groundwork for a targeted approach to handling missing data.
+
+```{r}
+missing_indices_before <- which(is.na(data$value_eur))
+missing_indices_before
+```
+
+
+In this step, we addressed missing values in the 'value_eur' column by employing a predictive modeling approach, specifically through the 'mice' package in R, which uses a random forest model for imputation. We selected a subset of relevant features, including overall rating, potential, age, nationality, and international reputation, ensuring character variables were converted to factors to fit the model's requirements.
+
+Using the 'mice' function with predictive mean matching (PMM) method, we executed a single imputation cycle with concise iterations, balancing computational efficiency with the quality of imputation, and set a seed for reproducibility. The imputed values were then used to fill in the missing 'value_eur' data.
+
+### Why predicting in value_eur column ? 
+
+The decision to predict missing values in the 'value_eur' column was informed by its strong correlation and causation relationship with the wage column, indicating that players' market values (value_eur) significantly influence their wages. This relationship suggests that understanding and accurately imputing the 'value_eur' can provide insightful data points for analyses, particularly when assessing financial aspects of players' careers.
+
+Additionally, the target variable for our analysis—identified by the newly created categorical 'good_wage' column—along with the relatively low incidence of missing values in other columns, reinforced the strategic choice to focus on 'value_eur' for imputation. This approach ensures that the dataset remains robust and comprehensive, allowing for more accurate modeling and interpretation of players' wages based on their market values. 
+
+```{r}
+library(mice)
+
+temp_data <- data[, c("value_eur", "overall", "potential", "age", "nationality_id", "international_reputation"), drop = FALSE]
+
+temp_data[sapply(temp_data, is.character)] <- lapply(temp_data[sapply(temp_data, is.character)], as.factor)
+
+imputed <- mice(temp_data, method = 'pmm', m = 1, maxit = 5, seed = 123)
+
+completed <- complete(imputed)
+
+data$value_eur[is.na(data$value_eur)] <- completed$value_eur[is.na(data$value_eur)]
+```
+
+In this phase, we revisited the rows initially identified with missing 'value_eur' values to evaluate the effectiveness of our imputation strategy. By extracting these specific rows from the dataset—now with the imputed values in place—we were able to directly observe the outcomes of the imputation process. Utilizing a print command, we displayed the updated rows to assess the quality of the imputed data. This step is critical for validating the imputation model's performance, ensuring that the filled-in values are consistent with the dataset's overall patterns and distributions. 
+
+```{r}
+
+data_imputed_rows <- data[missing_indices_before, ]
+head(data_imputed_rows)
+
+```
+
+Following the imputation process, we conducted a final check to confirm the elimination of missing values in the 'value_eur' column. This verification step is crucial to ensure that all previously identified missing values in the 'value_eur' column have been successfully addressed. 
+
+```{r}
+na_values <- is.na(data)
+colSums(na_values)
+```
+
+In this step, we focused on ensuring that our dataset does not suffer from sample bias, particularly in the context of the newly created 'good_wage' classification. The printout of these counts revealed that there are 9596 instances of class 0 and 8647 instances of class 1. This distribution indicates a relatively balanced representation of both low and high wage categories within the dataset, which is crucial for preventing sample bias. Ensuring a balanced class distribution is important for the reliability of Logistic Regression, as it helps to avoid skewing the results in favor of one category over the other.
+
+```{r}
+value_counts_good_wage <- table(data$good_wage)
+print(value_counts_good_wage)
+```
+
+
+Given the high correlation and causation between 'value_eur' and wages, the choice to use a random forest model for imputing missing values in 'value_eur' was strategic, aimed at leveraging the strong relationship between these two variables for accurate imputation.For the remaining parts of the dataset, particularly for numeric columns with missing values, a simpler yet effective approach was adopted—filling missing values with the median of each respective column. This decision is grounded in the median's robustness to outliers, making it a suitable choice for maintaining the integrity of the dataset while addressing missingness across various numeric fields.
+
+```{r}
+
+numeric_columns <- sapply(data, is.numeric)
+data[numeric_columns] <- lapply(data[numeric_columns], function(x) ifelse(is.na(x), median(x, na.rm = TRUE), x))
+
+```
+
+### Feature selection
+
+In the feature selection step, the focus was on identifying columns within the dataset that show a significant correlation with our target column, the 'good_wage' classification. This process is pivotal in refining the dataset to include only those variables that have a meaningful relationship with the target, thereby enhancing the efficacy of any predictive modeling or analysis to be conducted later.
+
+By calculating the correlation coefficient between each numeric column and the 'good_wage' column, we were able to assess the strength and direction of the relationship between these variables.  The selection of significant features was based on a predefined threshold for the correlation coefficient, in this case, an absolute value greater than 0.2. This threshold was chosen to capture features that have at least a moderate relationship with the target variable, excluding those with negligible correlations. The resulting `significant_features` variable contains the names of columns that meet this criterion, streamlining the dataset to focus on variables that are most likely to contribute meaningful insights in relation to the 'good_wage' outcome.
+
+```{r}
+
+correlations <- sapply(data[, numeric_columns], function(x) cor(x, data$good_wage, use = "complete.obs"))
+significant_features <- names(correlations[abs(correlations) > 0.2])  
+print(significant_features)
+```
+
+After a thorough analysis of the dataset and evaluating the correlations between various columns and the target variable, a decision was made to focus on columns that exhibit not just high correlation but also significant causation with the 'good_wage' classification. This approach underscores the importance of distinguishing between correlation.
+
+The columns identified as having high causation—overall rating, potential, market value ('value_eur'), age, nationality (represented by 'nationality_id'), international reputation, and a newly created column reflecting players' positions—were chosen for further analysis. This selection is based on the rationale that these factors are intrinsically linked to a player's wage, either through their on-field performance, market value, experience, or reputation on the international stage.
+
+Notably, the decision to exclude certain columns despite their correlation exceeding the 0.2 threshold, such as 'skill_curve', was made on the grounds of relevance and logical causation. In this context, 'skill_curve' was deemed not to have a direct impact on a player's wage, suggesting that its correlation with the 'good_wage' variable might be incidental or due to underlying factors not directly related to the skill itself.
+
+This selective approach, prioritizing causation over mere correlation, ensures that the analysis is grounded in variables that are logically and directly relevant to player wages. By focusing on these causation variables, the aim is to build a more accurate and meaningful model that reflects the true drivers behind players' wages, avoiding the potential noise and bias that might arise from including variables with no logical causation. This methodical selection process is crucial for developing robust analyses and interpretations that can inform further discussions and decisions regarding player valuation and wage determination.
+
+```{r}
+selected_columns <- c("overall", "potential", "value_eur", "age", "nationality_id", "international_reputation", "new_column", "good_wage")
+data <- data[selected_columns]
+```
+
+### Multicollinairt check
+
+During the multicollinearity check, it was discovered that 'overall' and 'potential' exhibit a high degree of correlation, suggesting that including both in the model might introduce redundancy and affect the model's reliability. Multicollinearity can inflate the variance of the coefficient estimates and make the model interpretation more challenging. 
+
+To address this issue, a variance inflation factor (VIF) analysis was conducted using the 'car' package in R, which helps quantify the level of multicollinearity among the independent variables in a regression model. The VIF values for the initial set of selected variables indicated that 'overall' had a high VIF value, suggesting significant multicollinearity.
+
+```{r}
+#library(car)
+
+selected_columns_forvif <- c("overall", "potential", "value_eur", "age", "nationality_id", "international_reputation")
+
+dataforvif <- data[selected_columns_forvif]
+
+model_for_vif <- lm(as.formula(paste("good_wage ~", paste(selected_columns_forvif, collapse = " + "))), data = data)
+
+vif_values <- car::vif(model_for_vif)
+print(vif_values)
+
+```
+
+Based on these results, a decision was made to re-evaluate the model without the 'overall' variable to reduce multicollinearity. By excluding 'overall' and retaining 'potential' along with the other selected variables—'value_eur', 'age', 'nationality_id', and 'international_reputation'—a new VIF analysis was conducted to assess the impact on multicollinearity.We ensured that the model is built on a set of variables that provide unique and valuable insights into the factors influencing the 'good_wage' classification, thereby improving the robustness and reliability of the analysis.
+
+```{r}
+selected_columns_forvif <- c( "potential", "value_eur", "age", "nationality_id", "international_reputation")
+
+dataforvif <- data[selected_columns_forvif]
+
+model_for_vif <- lm(as.formula(paste("good_wage ~", paste(selected_columns_forvif, collapse = " + "))), data = data)
+
+vif_values <- car::vif(model_for_vif)
+print(vif_values)
+```
+
+In this code snippet, the process of splitting the dataset into training and testing sets is undertaken, a fundamental step in preparing data for machine learning models. The parameter `p = .8` indicates that 80% of the data is allocated to the training set, with the remaining 20% going to the testing set. This split ratio is a common practice, allowing for a substantial amount of data to be used for model training while still retaining a meaningful portion for testing the model's performance on unseen data. This methodical separation ensures that the model can be trained on one subset of the data and then evaluated on a distinct subset, providing a reliable assessment of its performance and generalizability to new data.
+```{r}
+library(caret)
+set.seed(123) 
+trainIndex <- createDataPartition(data$good_wage, p = .8, 
+                                  list = FALSE, 
+                                  times = 1)
+train_data <- data[trainIndex, ]
+test_data <- data[-trainIndex, ]
+
+```
+
+### Logistic Regression
+
+For the initial attempt at a logistic regression model, the model is formulated to predict the 'good_wage' variable using the selected predictors. This model is trained on the training dataset.  This approach enables the assessment of the relationship between the selected predictors and the likelihood of having a good wage, applying logistic regression principles to estimate the probabilities that reflect this binary outcome.
+
+```{r warning=FALSE}
+
+model_formula <- as.formula(paste("good_wage ~", paste(selected_columns_forvif, collapse = " + ")))
+logistic_model <- glm(model_formula, data = train_data, family = "binomial")
+
+```
+
+This code snippet demonstrates how to generate predictions from the logistic regression model and evaluate its performance on the test dataset. The accuracy of predictions is calculated by comparing them to the actual 'good_wage' values in the test dataset, with the result showing an accuracy of approximately 78.6%. This metric provides a straightforward measure of the model's overall predictive capability. To further assess the model's performance, the area under the Receiver Operating Characteristic (ROC) curve (AUC) is calculated using the `pROC` package. The resulting AUC value of approximately 0.873 indicates a high level of model performance, suggesting that the logistic regression model is effective in distinguishing between players with a good wage and those without, based on the predictors included in the model.
+
+```{r  warning=FALSE}
+predictions <- predict(logistic_model, newdata = test_data, type = "response")
+
+predicted_classes <- ifelse(predictions > 0.5, 1, 0)
+
+accuracy <- mean(predicted_classes == test_data$good_wage)
+print(paste("Accuracy:", accuracy))
+
+if(!require(pROC)) install.packages("pROC")
+library(pROC)
+roc_curve <- roc(test_data$good_wage, predictions)
+auc_value <- auc(roc_curve)
+print(paste("AUC:", auc_value))
+
+```
+
+This code snippet illustrates the evaluation of the logistic regression model's performance using a confusion matrix, along with various metrics derived from it.
+The resulting confusion matrix reveals the number of correct and incorrect predictions made by the model: 1700 true negatives (correctly predicted as not having a good wage), 1205 true positives (correctly predicted as having a good wage), 522 false positives (incorrectly predicted as having a good wage), and 269 false negatives (incorrectly predicted as not having a good wage). The reported accuracy of approximately 78.6%, confirming the model's ability to correctly classify the majority of cases. 
+- Recall: 86.34% indicates a high ability to correctly identify actual cases of good wages.
+- Specificity: 69.7% reflects the model's effectiveness in identifying those without a good wage.
+- The Balanced Accuracy, which averages sensitivity and specificity, stands at 78.06%, offering a single metric that accounts for both classes' prediction accuracy.
+
+```{r}
+
+predicted_classes_factor <- factor(predicted_classes, levels = c(0, 1))
+actual_classes_factor <- factor(test_data$good_wage, levels = c(0, 1))
+
+conf_matrix_caret <- confusionMatrix(predicted_classes_factor, actual_classes_factor)
+print(conf_matrix_caret)
+
+```
+
+Following the evaluation of the logistic regression model using accuracy and the confusion matrix, the Receiver Operating Characteristic (ROC) curve analysis offers an additional, insightful perspective on the model's performance. The ROC curve's area under the curve (AUC) value of approximately 0.87 is a key metric that quantifies the overall ability of the model to discriminate between the two classes across all possible thresholds. 
+```{r}
+
+actualClasses <- factor(test_data$good_wage, levels = c(0, 1))
+
+roc_curve <- roc(response = actualClasses, 
+                 predictor = predictions,
+                 levels = c(1, 0)) 
+
+plot(roc_curve, 
+     col = "#FF4500", lwd = 2, 
+     type = "b", 
+     pch = 19,
+     xlab = "1 - Specificity", 
+     ylab = "Sensitivity",
+     cex.lab = 1.2, 
+     cex.main = 1.5, 
+     cex.axis = 1.1,
+     cex = 0.6)
+
+grid(col = "#DDDDDD", lty = 2)
+abline(0, 1, col = "grey", lwd = 2, lty = 2)
+
+
+```
+
+###Threshold optimiztion
+
+In this segment, the logistic regression model is re-evaluated to find the optimal threshold for classifying observations. After fitting the model on the training data, predictions are made on the same set to identify the threshold that yields the highest accuracy. By iterating over a range of thresholds, the best one is determined based on its ability to maximize accuracy in distinguishing between classes.
+Upon applying this optimized threshold to the test dataset, the model achieved a test data accuracy of approximately 79.1%, indicating a very slight improvement in its ability to classify observations correctly compared to the initial threshold of 0.5. The model's goodness-of-fit, as measured by the Akaike Information Criterion (AIC), was reported as 13299.49. Furthermore, the Area Under the Curve (AUC) for the Receiver Operating Characteristic (ROC) curve was calculated as approximately 0.873( so close to previous one), maintaining a strong performance in discriminating between the two classes (good wage vs. not good wage) across all thresholds. 
+
+```{r warning=FALSE}
+model_formula <- as.formula(paste("good_wage ~", paste(selected_columns_forvif, collapse = " + ")))
+logistic_model <- glm(model_formula, data = train_data, family = "binomial")
+
+train_predictions <- predict(logistic_model, newdata = train_data, type = "response")
+
+best_threshold <- 0.5
+best_accuracy <- 0
+
+for(threshold in seq(0.1, 0.9, by = 0.01)) {
+  predicted_classes <- ifelse(train_predictions > threshold, 1, 0)
+  accuracy <- mean(predicted_classes == train_data$good_wage)
+  
+  if(accuracy > best_accuracy) {
+    best_accuracy <- accuracy
+    best_threshold <- threshold
+  }
+}
+
+test_predictions <- predict(logistic_model, newdata = test_data, type = "response")
+test_predicted_classes <- ifelse(test_predictions > best_threshold, 1, 0)
+
+test_accuracy <- mean(test_predicted_classes == test_data$good_wage)
+print(paste("Test Data Accuracy:", test_accuracy))
+
+model_aic <- AIC(logistic_model)
+print(paste("Model AIC:", model_aic))
+
+if(!require(pROC)) install.packages("pROC")
+library(pROC)
+roc_curve <- roc(test_data$good_wage, test_predictions)
+auc_value <- auc(roc_curve)
+print(paste("AUC:", auc_value))
+```
+
+```{r}
+best_threshold
+```
+
+### Conclusion of logistic regression
+
+The conclusion drawn from the analysis presents a thoughtful consideration of the balance between two types of errors in player selection for companies: choosing less potential players (false positives) versus missing out on highly valuable future stars (false negatives). The assessment underscores that the cost of not recognizing a potentially star player is deemed more significant than the risk associated with recruiting a player with less potential. This perspective is crucial for talent management strategies, where the emphasis is on securing players who could provide substantial future value.
+
+Despite the logical inclination to adjust the threshold above 0.5 to minimize the risk of missing out on valuable players, empirical evidence from the model's performance indicates that decreasing the threshold(0.44 is best threshold) slightly improves the model's accuracy. This finding suggests a counterintuitive situation where lowering the threshold, contrary to increasing it as initially thought, might be beneficial for model performance.
+
+However, given the minimal impact on the outcome from adjusting the threshold and the inherent trade-offs between increasing and decreasing it, the decision to stick with the initial threshold of 0.5 is deemed a logical compromise. This choice represents an equilibrium point that, while not perfectly aligning with the intuitive strategy to increase the threshold, acknowledges the empirical evidence suggesting slight improvements with a lower threshold.
+
+The final decision to proceed with the original model, which achieved 0.7 accuracy and 0.8 AUC, reflects a pragmatic approach to model selection. It acknowledges that while no model can achieve perfection, achieving a 70% accuracy rate and an AUC of 0.8 is considered satisfactory for the current analysis. This conclusion emphasizes the importance of balancing theoretical considerations with empirical evidence in model selection and the acceptance of inherent limitations in predictive modeling, aiming for the most effective and practical solution under the given circumstances.
+
+## Question 4:  Test whether there is a significant difference in overall ratings between players from Europe and South America.
+
+Null Hypothesis (H0): The mean overall ratings of players of European countries are not different to those of South American countries players.
+
+Alternative Hypothesis (H1): The mean overall ratings of players of European counties are different from those of South American  countries players.
+
+```{r hypothesis_test, echo=TRUE}
+# Load required libraries
+library(dplyr)
+
+```
+
+Loading the Dataset and defining Europe and South america countries
+```{r}
+# Load the dataset
+fifa_data <- read.csv("/Users/aa085/outputplayers20.csv")
+
+# Define European and South American countries
+european_countries <- c("Spain", "Italy", "Germany", "France", "England", "Netherlands", "Portugal", "Belgium", "Switzerland", "Austria", "Scotland", "Denmark", "Sweden", "Norway", "Finland", "Ireland", "Wales", "Czech Republic", "Greece", "Turkey", "Russia", "Poland", "Ukraine", "Hungary", "Croatia", "Serbia", "Bosnia and Herzegovina", "Slovakia", "Romania", "Bulgaria", "Albania", "Lithuania", "Slovenia", "Latvia", "Estonia", "Montenegro", "Luxembourg", "Cyprus", "Malta", "Iceland", "Faroe Islands", "Greenland", "Liechtenstein", "Andorra", "Monaco", "San Marino", "Gibraltar")
+south_american_countries <- c("Brazil", "Argentina", "Colombia", "Peru", "Venezuela", "Chile", "Ecuador", "Bolivia", "Paraguay", "Uruguay", "Guyana", "Suriname", "French Guiana", "Falkland Islands")
+
+```
+
+Then filtering Players of Europe and South america countries 
+```{r}
+# Filter data for European and South American players
+european_players <- fifa_data %>% filter(nationality_name %in% european_countries)
+south_american_players <- fifa_data %>% filter(nationality_name %in% south_american_countries)
+```
+
+
+```{r}
+# Perform two-sample t-test assuming equal variances
+t_test_result <- t.test(european_players$overall, south_american_players$overall, var.equal = TRUE)
+
+# Print the results
+print(t_test_result)
+
+```
+
+**Interpretation of hypothesis test**
+
+data: european_players$overall and south_american_players$overall: This indicates the two samples being compared. 
+
+Test Statistic:t = -16.512; This gives the Difference between the means of the two samples 
+ 
+ Degrees of Freedom: df = 13871: Here the number of independent observations in the data that are available 
+ 
+P-value: p-value < 2.2e-16  the p-value is extremely small, indicating very strong evidence against the null hypothesis.
+
+Alternative Hypothesis: True difference in means is not equal to 0:It states that the true difference in means between European players and South American players is not equal to zero.
+
+Confidence Interval: 95 percent confidence interval: -2.606334 -2.053198; This is the 95% confidence interval for the difference in means between the two samples.The confidence interval is negative, suggesting that European players, on average, have lower overall ratings than South American players.
+
+The results of the two-sample t-test indicate a significant disparity in the overall ratings between European and South American players. Specifically, South American players exhibit higher mean overall ratings compared to their European counterparts. The notably small p-value suggests compelling evidence against the null hypothesis, reinforcing the observed difference in ratings.
+
+**The results of the hypothesis test indicate:**
+
+* Reject H0 $: The p-value is less than the chosen significance level (typically 0.05), providing strong evidence against the null hypothesis.
+* Accept H1 : This suggests that there is a significant difference in mean overall ratings between European and South American players.
+
+  Therefore, we conclude that there is a significant, non-random difference in the mean ratings between the two regions. Specifically, South American players have higher mean overall ratings compared to European players.
+
+# Conclusion
+
+In conclusion, we revisited several pivotal questions that underpin the business operations within the world of soccer, applying rigorous statistical models to extract valuable insights.
+
+**Question 1:** "Predict the potential of the players to identify emerging talents using regularization method" , The business implication of this is profound, as soccer clubs can leverage our model to discern whether a player is a sound investment. Our exploration began with ridge regularization, which did not sufficiently simplify the model. However, our analysis favored the Lasso model, which demonstrated superior predictive performance by achieving lower RMSE values. This suggests that Lasso regression's ability to reduce complexity through feature selection makes it the preferred method. Yet, the slightly lower RMSE for the test data implies that further refinement, such as subset selection or revising the variable set, could enhance the model's effectiveness.
+
+**Question 2** : "Predict a player's market value based on key contributing factors using multiple linear regression" , The business value here cannot be overstated; the market value is a cornerstone metric in the soccer industry, influencing decisions from player transactions to contract negotiations. While our model initially showed promise with high R-squared values, the presence of heteroscedasticity raises concerns about inflated effectiveness measures. This calls for a potential shift to a different modeling approach or the acquisition of more expansive data to correct for this variance and improve the model's reliability.
+
+**Question 3** : "Predict whether the player should be classified as a high-wage player or a low-wage player using logistic regression", This is especially crucial for sponsors and management companies in forecasting future wage trends and shaping contract negotiations. Our model's accuracy and AUC score are robust, indicating a powerful classification capability that stakeholders can rely upon for making informed decisions.
+
+**Question 4**: "Test whether there is a significant difference in overall ratings between players from Europe and South America", The business ramifications are significant for entities considering where to invest in player development infrastructure. Our statistical tests uncovered a notable difference in ratings, with South American players showing higher mean overall ratings than European players. This insight, supported by a low p-value, provides a compelling argument for potential investment shifts toward South American soccer talent.
+
+Together, these questions and their corresponding analyses form a cornerstone of our understanding, offering clubs, managers, sponsors, and investors a data-driven foundation for strategic decision-making in the dynamic and financially significant world of soccer.
+
+# References:
+- Nishida, K. (2018, February 23). A Beginner’s Guide to Exploratory Data Analysis with Linear Regression — Part 1. Learn Data Science. https://blog.exploratory.io/a-practical-guide-of-exploratory-data-analysis-with-linear-regression-part-1-9f3a182d7a92
+ 
+- Chaudhary, H. (2023, Mar 9). Regression project part 3: EDA & creating the model. Medium. Retrieved from https://medium.com/@chaudharyharsh575/regression-project-part-3-eda-creating-the-model-7ad0432387f7
+
+- Wu, S. (2020, May 18). Multicollinearity in Regression: Why it is a problem? How to check and fix it. Towards Data Science. Retrieved from https://towardsdatascience.com/multicollinearity-in-regression-9b48a2fd15ed
+
+- Wijaya, C. Y. (2020, June 24). Outlier — Why is it important? The tale of the extreme data. Towards Data Science. Retrieved from https://towardsdatascience.com/outlier-why-is-it-important-the-tale-of-the-extreme-data-48d25130b23b
+
+- Sports Statistics. (2024). Retrieved from https://sports-statistics.com/sports-data/sports-data-sets-for-data-modeling-visualization-predictions-machine-learning/
